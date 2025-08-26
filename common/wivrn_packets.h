@@ -39,7 +39,10 @@
 namespace wivrn
 {
 
-static constexpr int protocol_revision = 1;
+// Default port for server to listen, both TCP and UDP
+static const int default_port = 9757;
+
+static constexpr int protocol_revision = 2;
 
 enum class device_id : uint8_t
 {
@@ -162,6 +165,7 @@ enum class interaction_profile : uint8_t
 	meta_touch_controller_quest_2,
 	samsung_odyssey_controller,
 	valve_index_controller,
+	touch_controller_yvr,
 };
 
 enum video_codec
