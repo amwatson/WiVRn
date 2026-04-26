@@ -33,6 +33,9 @@
 
 namespace xr
 {
+using PFN_xrPassthroughStartYVRLocal = XrResult(XRAPI_PTR *)(XrSession session);
+using PFN_xrPassthroughStopYVRLocal = XrResult(XRAPI_PTR *)(XrSession session);
+
 class instance;
 class system;
 
@@ -47,6 +50,8 @@ class session : public utils::handle<XrSession, xrDestroySession>
 	PFN_xrRequestDisplayRefreshRateFB xrRequestDisplayRefreshRateFB = nullptr;
 
 	PFN_xrPerfSettingsSetPerformanceLevelEXT xrPerfSettingsSetPerformanceLevelEXT = nullptr;
+	PFN_xrPassthroughStartYVRLocal xrPassthroughStartYVR = nullptr;
+	PFN_xrPassthroughStopYVRLocal xrPassthroughStopYVR = nullptr;
 
 public:
 	session() = default;

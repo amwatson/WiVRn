@@ -1291,6 +1291,21 @@ void application::initialize()
 	        XR_META_LOCAL_DIMMING_EXTENSION_NAME,
 	};
 
+	// Play For Dream/YVR extension names are not always present in all OpenXR header versions.
+	// Keep literal fallbacks so we still request them whenever the runtime advertises them.
+#ifdef XR_YVR_PASSTHROUGH_EXTENSION_NAME
+	opt_extensions.push_back(XR_YVR_PASSTHROUGH_EXTENSION_NAME);
+#else
+	opt_extensions.push_back("XR_YVR_passthrough");
+#endif
+	#ifdef XR_YVR_COMPOSITION_LAYER_ALPHA_BLEND_EXTENSION_NAME
+	opt_extensions.push_back(XR_YVR_COMPOSITION_LAYER_ALPHA_BLEND_EXTENSION_NAME);
+#else
+	opt_extensions.push_back("XR_YVR_composition_layer_alpha_blend");
+#endif
+	opt_extensions.push_back("XR_YVR_passthrough_content");
+	opt_extensions.push_back("XR_YVR_frame_end_info_ext");
+
 	for (const auto & i: interaction_profiles)
 		opt_extensions.insert(opt_extensions.end(), i.required_extensions.begin(), i.required_extensions.end());
 
@@ -1300,7 +1315,11 @@ void application::initialize()
 		                       opt_extensions.end(),
 		                       [&ext](const char * i) { return strcmp(i, ext.extensionName) == 0; });
 		if (it != opt_extensions.end())
+		{
 			xr_extensions.push_back(*it);
+			if (strncmp(ext.extensionName, "XR_YVR_", strlen("XR_YVR_")) == 0)
+				spdlog::info("Requesting YVR extension {}", ext.extensionName);
+		}
 	}
 
 #ifdef __ANDROID__
