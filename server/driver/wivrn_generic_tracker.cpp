@@ -22,7 +22,7 @@
 #include "util/u_logging.h"
 #include "utils/method.h"
 #include "wivrn_session.h"
-
+#include <bsd/string.h>
 #include "math/m_api.h"
 #include "math/m_eigen_interop.hpp"
 #include "math/m_space.h"

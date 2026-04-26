@@ -56,6 +56,8 @@
 #include <utility>
 #include <vulkan/vulkan.h>
 
+#include <bsd/string.h>
+
 #if WIVRN_FEATURE_STEAMVR_LIGHTHOUSE
 #include "steamvr_lh_interface.h"
 #endif

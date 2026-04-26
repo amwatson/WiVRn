@@ -21,6 +21,7 @@
 #include <glib.h>
 #include <iostream>
 #include <unistd.h>
+#include <gio/gunixfdlist.h>
 
 sleep_inhibitor::sleep_inhibitor()
 {
@@ -67,16 +68,19 @@ sleep_inhibitor::sleep_inhibitor()
 		return;
 	}
 
-	int fd_index;
+  int fd_index;
 	g_variant_get(output, "(h)", &fd_index);
 
-	int fd_count;
-	int * fds = g_unix_fd_list_steal_fds(fd_list, &fd_count);
 
-	if (fd_index < fd_count)
-		fd = fds[fd_index];
-
-	g_free(fds);
+if (fd_index >= 0)
+{
+    GError * fd_error = nullptr;
+    const int owned_fd = g_unix_fd_list_get(fd_list, fd_index, &fd_error);
+    if (fd_error == nullptr)
+        fd = owned_fd;
+    else
+        g_error_free(fd_error);
+}
 
 	g_variant_unref(output);
 	g_object_unref(fd_list);
