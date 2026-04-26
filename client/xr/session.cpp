@@ -25,6 +25,7 @@
 #include "xr/instance.h"
 #include "xr/system.h"
 #include "xr/to_string.h"
+#include <spdlog/spdlog.h>
 #include <ranges>
 #include <vulkan/vulkan.h>
 #include <openxr/openxr_platform.h>
@@ -60,6 +61,14 @@ xr::session::session(xr::instance & inst, xr::system & sys, vk::raii::Instance &
 
 	if (inst.has_extension(XR_EXT_PERFORMANCE_SETTINGS_EXTENSION_NAME))
 		xrPerfSettingsSetPerformanceLevelEXT = inst.get_proc<PFN_xrPerfSettingsSetPerformanceLevelEXT>("xrPerfSettingsSetPerformanceLevelEXT");
+
+	// Play For Dream/YVR expose non-standard passthrough start/stop entry points through XR_YVR_passthrough.
+	// Resolve them opportunistically; they are optional and may return nullptr on other runtimes.
+	if (inst.has_extension("XR_YVR_passthrough"))
+	{
+		(void)xrGetInstanceProcAddr(inst, "xrPassthroughStartYVR", reinterpret_cast<PFN_xrVoidFunction *>(&xrPassthroughStartYVR));
+		(void)xrGetInstanceProcAddr(inst, "xrPassthroughStopYVR", reinterpret_cast<PFN_xrVoidFunction *>(&xrPassthroughStopYVR));
+	}
 }
 
 std::vector<XrReferenceSpaceType> xr::session::get_reference_spaces() const
@@ -159,7 +168,17 @@ void xr::session::end_frame(XrTime display_time, const std::vector<XrComposition
 	};
 
 	auto lock = queue->lock();
-	CHECK_XR(xrEndFrame(id, &end_info));
+	const XrResult result = xrEndFrame(id, &end_info);
+	if (XR_UNQUALIFIED_SUCCESS(result))
+		return;
+
+	spdlog::error("xrEndFrame failed: {} (blend mode {}, {} layer(s))", xr::to_string(result), xr::to_string(blend_mode), layers.size());
+	for (size_t i = 0; i < layers.size(); i++)
+	{
+		const XrCompositionLayerBaseHeader * const layer = layers[i];
+		spdlog::error("Layer #{}: type={}, flags=0x{:x}", i, xr::to_string(layer->type), uint64_t(layer->layerFlags));
+	}
+	CHECK_XR(result, "xrEndFrame");
 }
 
 void xr::session::begin_session(XrViewConfigurationType view_config)
@@ -356,17 +375,31 @@ void xr::session::enable_passthrough(xr::system & system)
 	if (system.passthrough_supported() == xr::passthrough_type::none)
 		return;
 
-	if (inst->has_extension(XR_FB_PASSTHROUGH_EXTENSION_NAME))
+	const bool supports_alpha_blend =
+	        utils::contains(system.environment_blend_modes(XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO), XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND);
+
+	// Prefer alpha blend passthrough when available.
+	// Some runtimes expose vendor passthrough extensions but reject their composition layers at xrEndFrame.
+	if (supports_alpha_blend)
 	{
-		passthrough.emplace<xr::passthrough_fb>(*inst, *this);
+		passthrough.emplace<xr::passthrough_alpha_blend>();
+		spdlog::info("Passthrough backend selected: OpenXR alpha blend");
+
+		if (xrPassthroughStartYVR)
+		{
+			const XrResult yvr_start_result = xrPassthroughStartYVR(*this);
+			spdlog::info("Called xrPassthroughStartYVR: {}", xr::to_string(yvr_start_result));
+		}
 	}
 	else if (inst->has_extension(XR_HTC_PASSTHROUGH_EXTENSION_NAME))
 	{
 		passthrough.emplace<xr::passthrough_htc>(*inst, *this);
+		spdlog::info("Passthrough backend selected: XR_HTC_passthrough");
 	}
-	else if (utils::contains(system.environment_blend_modes(XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO), XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND))
+	else if (inst->has_extension(XR_FB_PASSTHROUGH_EXTENSION_NAME))
 	{
-		passthrough.emplace<xr::passthrough_alpha_blend>();
+		passthrough.emplace<xr::passthrough_fb>(*inst, *this);
+		spdlog::info("Passthrough backend selected: XR_FB_passthrough");
 	}
 }
 
@@ -374,6 +407,13 @@ void xr::session::disable_passthrough()
 {
 	if (std::holds_alternative<std::monostate>(passthrough))
 		return;
+
+	if (xrPassthroughStopYVR)
+	{
+		const XrResult yvr_stop_result = xrPassthroughStopYVR(*this);
+		spdlog::info("Called xrPassthroughStopYVR: {}", xr::to_string(yvr_stop_result));
+	}
+
 	passthrough.emplace<std::monostate>();
 }
 
