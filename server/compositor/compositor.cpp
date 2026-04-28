@@ -462,12 +462,11 @@ xrt_result_t compositor::layer_commit(xrt_graphics_sync_handle_t sync_handle)
 
 	cmd.end();
 
-	vk::SemaphoreSubmitInfo sem_info{
+	const vk::SemaphoreSubmitInfo sem_info{
 	        .semaphore = *sem,
 	        .value = ++sem_value,
 	        .stageMask = vk::PipelineStageFlagBits2::eComputeShader,
 	};
-	images[i].sem_value = sem_value;
 
 	{
 		vk::CommandBufferSubmitInfo cmd_info{
@@ -508,7 +507,7 @@ xrt_result_t compositor::layer_commit(xrt_graphics_sync_handle_t sync_handle)
 	if (vk.device.waitSemaphores(vk::SemaphoreWaitInfo{
 	                                     .semaphoreCount = 1,
 	                                     .pSemaphores = &*sem,
-	                                     .pValues = &sem_value,
+	                                     .pValues = &sem_info.value,
 	                             },
 	                             U_TIME_1S_IN_NS) == vk::Result::eTimeout)
 	{
@@ -551,7 +550,7 @@ xrt_result_t compositor::request_display_refresh_rate(float hz)
 	try
 	{
 		requested_refresh_rate = hz;
-		session.send_control(to_headset::refresh_rate_change{.fps = hz});
+		session.send_control(to_headset::refresh_rate_change{.hz = hz});
 	}
 	catch (std::exception & e)
 	{
@@ -642,8 +641,9 @@ void compositor::send_video_stream_description()
 	to_headset::video_stream_description desc{
 	        .width = uint16_t(images[0].image.info().extent.width),
 	        .height = uint16_t(images[0].image.info().extent.height),
-	        .fps = settings[0].fps,
+	        .frame_rate = settings[0].fps,
 	};
+	get_display_refresh_rate(&desc.refresh_rate);
 	static_assert(std::tuple_size_v<decltype(settings)> == std::tuple_size_v<decltype(desc.codec)>);
 	std::ranges::transform(settings, desc.codec.begin(), &encoder_settings::codec);
 	session.send_control(std::move(desc));
