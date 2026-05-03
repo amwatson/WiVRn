@@ -633,7 +633,7 @@ void wivrn::video_encoder_vulkan::present_image(vk::Image y_cbcr, vk::SemaphoreS
 
 	if (tmp_image)
 	{
-		assert(slot_item.view);
+		assert(*slot_item.view);
 		image_view = slot_item.view;
 		compositor_sem.stageMask = vk::PipelineStageFlagBits2::eCopy;
 
@@ -827,7 +827,7 @@ void wivrn::video_encoder_vulkan::present_image(vk::Image y_cbcr, vk::SemaphoreS
 		                             .baseMipLevel = 0,
 		                             .levelCount = 1,
 		                             .baseArrayLayer = 0,
-		                             .layerCount = vk::RemainingArrayLayers},
+		                             .layerCount = num_dpb_slots},
 		};
 		video_cmd_buf.pipelineBarrier2({
 		        .imageMemoryBarrierCount = 1,
